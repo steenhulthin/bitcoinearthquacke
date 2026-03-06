@@ -50,6 +50,21 @@ Edit constants in [`streamlit_app.py`](streamlit_app.py):
 - `MONTHS_BACK` (default `6`)
 - `MIN_MAGNITUDE` (default `4.5`)
 
+Or use the UI sliders:
+
+- `Months back`: `1` to `11`
+- `Minimum earthquake magnitude`: `4.0` to `9.0`
+
+### Magnitude Scale Note
+
+USGS catalogs are not limited to the original Richter scale (`ML`). They commonly
+use modern magnitude types such as moment magnitude (`Mw`) and other scale variants.
+In this app, the minimum magnitude filter is passed directly to the USGS API and
+applies to whatever magnitude type USGS reports for each event.
+References:
+- https://www.usgs.gov/faqs/moment-magnitude-richter-scale-what-are-different-magnitude-scales-and-why-are-there-so-many
+- https://www.usgs.gov/programs/earthquake-hazards/magnitude-types
+
 If APIs complain, reduce time range or magnitude sensitivity and try again.
 
 ## 🧪 Tests

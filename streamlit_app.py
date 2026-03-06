@@ -184,9 +184,29 @@ def build_figure(df: pd.DataFrame) -> go.Figure:
 def render_app() -> None:
     st.set_page_config(page_title="Earthquakes vs Bitcoin", layout="wide")
     st.title("Daily Earthquakes vs. Bitcoin Price (USD)")
+    st.sidebar.header("Controls")
+    months_back = st.sidebar.slider(
+        "Months back",
+        min_value=1,
+        max_value=11,
+        value=MONTHS_BACK,
+        step=1,
+    )
+    min_magnitude = st.sidebar.slider(
+        "Minimum earthquake magnitude",
+        min_value=4.0,
+        max_value=9.0,
+        value=max(4.0, MIN_MAGNITUDE),
+        step=0.1,
+    )
+    st.sidebar.caption(
+        "USGS reports multiple magnitude types (commonly moment magnitude, Mw). "
+        "This is not strictly the original Richter scale (ML), though values are "
+        "comparable in overlapping ranges."
+    )
 
     try:
-        df = load_data()
+        df = load_data(months_back=months_back, min_magnitude=min_magnitude)
     except (DataFetchError, ValueError) as exc:
         st.error(str(exc))
         st.stop()

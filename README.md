@@ -18,6 +18,8 @@ A Streamlit app that plots earthquakes and Bitcoin on a dual-axis chart so you c
 - Red earthquakes, black Bitcoin line (because drama) 🔴⚫
 - Configurable lookback window (default: 6 months)
 - Magnitude filtering for earthquakes
+- Local USGS GeoJSON fallback snapshot if earthquake API calls fail
+- Local CoinGecko JSON fallback snapshot if API calls fail
 - Defensive API handling and friendly error messages
 - Basic tests for key data logic
 
@@ -55,6 +57,22 @@ Or use the UI sliders:
 - `Months back`: `1` to `11`
 - `Minimum earthquake magnitude`: `4.0` to `9.0`
 
+### Bitcoin Fallback Snapshot
+
+If CoinGecko is unavailable or rate-limited, the app falls back to:
+
+- `data/coingecko_bitcoin_market_chart_365d.json`
+
+This file uses the same `market_chart` JSON structure as the live CoinGecko API.
+
+### Earthquake Fallback Snapshot
+
+If USGS is unavailable, the app falls back to:
+
+- `data/usgs_earthquakes_4plus_365d.geojson`
+
+This file uses the same USGS GeoJSON `features` structure as the live API.
+
 ### Magnitude Scale Note
 
 USGS catalogs are not limited to the original Richter scale (`ML`). They commonly
@@ -87,6 +105,8 @@ Test file: [`tests/test_streamlit_app.py`](tests/test_streamlit_app.py)
 ## 🛠️ Troubleshooting
 
 - `401` from CoinGecko: you likely requested too many days for your tier.
+- API errors/rate limits: the app should automatically use the local CoinGecko snapshot.
+- USGS errors: the app should automatically use the local USGS snapshot.
 - Empty chart: check network access and API status.
 - Streamlit errors: verify dependencies in `requirements.txt`.
 

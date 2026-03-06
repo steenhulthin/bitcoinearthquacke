@@ -4,6 +4,7 @@ Dual-axis chart: daily global earthquake count (filtered) vs. Bitcoin price (USD
 """
 
 import datetime as dt
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -18,6 +19,10 @@ USGS_PAGE_SIZE = 20_000
 REQUEST_TIMEOUT_SECONDS = 30
 MAX_USGS_PAGES = 50
 COINGECKO_MAX_DAYS = 365
+COINGECKO_FALLBACK_PATH = (
+    Path(__file__).with_name("data") / "coingecko_bitcoin_market_chart_365d.json"
+)
+USGS_FALLBACK_PATH = Path(__file__).with_name("data") / "usgs_earthquakes_4plus_365d.geojson"
 
 
 class DataFetchError(RuntimeError):
@@ -55,34 +60,70 @@ def fetch_earthquake_counts(
         "limit": str(USGS_PAGE_SIZE),
     }
 
-    all_features: list[dict] = []
-    offset = 1
-    for _ in range(MAX_USGS_PAGES):
-        params = {**base_params, "offset": str(offset)}
-        try:
+    try:
+        all_features: list[dict] = []
+        offset = 1
+        for _ in range(MAX_USGS_PAGES):
+            params = {**base_params, "offset": str(offset)}
             resp = requests.get(url, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
             resp.raise_for_status()
             data = resp.json()
-        except Exception as exc:
-            raise DataFetchError(f"USGS request failed: {exc}") from exc
+            features = data.get("features")
+            if not isinstance(features, list):
+                raise DataFetchError("USGS response did not include a valid 'features' list.")
 
-        features = data.get("features")
-        if not isinstance(features, list):
-            raise DataFetchError("USGS response did not include a valid 'features' list.")
+            all_features.extend(features)
+            if len(features) < USGS_PAGE_SIZE:
+                break
+            offset += USGS_PAGE_SIZE
+        else:
+            raise DataFetchError("USGS pagination exceeded the safety limit.")
 
-        all_features.extend(features)
-        if len(features) < USGS_PAGE_SIZE:
-            break
-        offset += USGS_PAGE_SIZE
-    else:
-        raise DataFetchError("USGS pagination exceeded the safety limit.")
+        return earthquake_features_to_daily_df(
+            features=all_features,
+            start_date=start_date,
+            end_date=end_date,
+            min_magnitude=min_magnitude,
+        )
+    except Exception as api_exc:
+        try:
+            fallback_features = load_local_usgs_features()
+            return earthquake_features_to_daily_df(
+                features=fallback_features,
+                start_date=start_date,
+                end_date=end_date,
+                min_magnitude=min_magnitude,
+            )
+        except DataFetchError as fallback_exc:
+            raise DataFetchError(
+                f"USGS request failed: {api_exc}. Local fallback failed: {fallback_exc}"
+            ) from api_exc
 
+
+def earthquake_features_to_daily_df(
+    features: list[dict],
+    start_date: dt.date,
+    end_date: dt.date,
+    min_magnitude: float,
+) -> pd.DataFrame:
+    """Convert USGS feature list into daily earthquake counts."""
     daily_counts: dict[dt.date, int] = {}
-    for feat in all_features:
-        ts_ms = feat.get("properties", {}).get("time")
+    for feat in features:
+        props = feat.get("properties", {})
+        ts_ms = props.get("time")
+        mag = props.get("mag")
         if ts_ms is None:
             continue
+        if mag is not None:
+            try:
+                if float(mag) < min_magnitude:
+                    continue
+            except (TypeError, ValueError):
+                continue
+
         day = dt.datetime.utcfromtimestamp(ts_ms / 1000).date()
+        if day < start_date or day > end_date:
+            continue
         daily_counts[day] = daily_counts.get(day, 0) + 1
 
     all_days = pd.date_range(start=start_date, end=end_date, freq="D").date
@@ -91,9 +132,27 @@ def fetch_earthquake_counts(
     return df
 
 
+def load_local_usgs_features(json_path: Path | None = None) -> list[dict]:
+    """Load USGS GeoJSON fallback snapshot from disk."""
+    json_path = json_path or USGS_FALLBACK_PATH
+    if not json_path.exists():
+        raise DataFetchError(f"Fallback file not found: {json_path}")
+
+    try:
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise DataFetchError(f"Could not parse fallback JSON: {exc}") from exc
+
+    features = payload.get("features")
+    if not isinstance(features, list):
+        raise DataFetchError("Fallback JSON did not include a valid 'features' list.")
+    return features
+
+
 def fetch_bitcoin_prices(days: int) -> pd.DataFrame:
     """
     Return a DataFrame with columns ['date', 'price_usd'] for the last `days`.
+    Falls back to a local CoinGecko JSON snapshot when API calls fail.
     """
     if days < 1:
         raise ValueError("days must be >= 1")
@@ -106,16 +165,51 @@ def fetch_bitcoin_prices(days: int) -> pd.DataFrame:
         resp = requests.get(url, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
         resp.raise_for_status()
         payload = resp.json()
-    except Exception as exc:
-        raise DataFetchError(f"CoinGecko request failed: {exc}") from exc
+        return prices_to_daily_df(payload, days=days)
+    except Exception as api_exc:
+        try:
+            return load_local_coingecko_prices(days=days)
+        except DataFetchError as fallback_exc:
+            raise DataFetchError(
+                f"CoinGecko request failed: {api_exc}. Local fallback failed: {fallback_exc}"
+            ) from api_exc
 
+
+def prices_to_daily_df(payload: dict, days: int) -> pd.DataFrame:
+    """Convert CoinGecko market_chart payload to daily close prices."""
     prices = payload.get("prices")
     if not isinstance(prices, list):
-        raise DataFetchError("CoinGecko response did not include a valid 'prices' list.")
+        raise DataFetchError("CoinGecko payload did not include a valid 'prices' list.")
 
     price_df = pd.DataFrame(prices, columns=["ts_ms", "price_usd"])
-    price_df["date"] = pd.to_datetime(price_df["ts_ms"], unit="ms").dt.date
-    return price_df.groupby("date", as_index=False)["price_usd"].last()
+    price_df["date"] = pd.to_datetime(price_df["ts_ms"], unit="ms", errors="coerce").dt.date
+    price_df["price_usd"] = pd.to_numeric(price_df["price_usd"], errors="coerce")
+    price_df = price_df.dropna(subset=["date", "price_usd"])
+
+    if price_df.empty:
+        raise DataFetchError("CoinGecko payload did not contain usable price rows.")
+
+    daily = price_df.groupby("date", as_index=False)["price_usd"].last().sort_values("date")
+    max_date = daily["date"].max()
+    min_date = max_date - dt.timedelta(days=days + 1)
+    return daily[daily["date"] >= min_date].reset_index(drop=True)
+
+
+def load_local_coingecko_prices(
+    days: int,
+    json_path: Path | None = None,
+) -> pd.DataFrame:
+    """Load CoinGecko-formatted JSON snapshot from disk."""
+    json_path = json_path or COINGECKO_FALLBACK_PATH
+    if not json_path.exists():
+        raise DataFetchError(f"Fallback file not found: {json_path}")
+
+    try:
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise DataFetchError(f"Could not parse fallback JSON: {exc}") from exc
+
+    return prices_to_daily_df(payload, days=days)
 
 
 @st.cache_data(ttl=86_400)

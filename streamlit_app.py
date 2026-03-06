@@ -4,6 +4,7 @@ Dual-axis chart: daily global earthquake count (filtered) vs. Bitcoin price (USD
 """
 
 import datetime as dt
+from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -191,6 +192,14 @@ def render_app() -> None:
         st.stop()
 
     st.plotly_chart(build_figure(df), use_container_width=True)
+
+    st.divider()
+    st.subheader("README")
+    readme_path = Path(__file__).with_name("README.md")
+    try:
+        st.markdown(readme_path.read_text(encoding="utf-8"))
+    except OSError:
+        st.info("README.md was not found.")
 
 
 if __name__ == "__main__":

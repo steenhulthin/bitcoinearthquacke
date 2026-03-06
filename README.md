@@ -86,7 +86,9 @@ PRs are welcome, especially if they include:
 
 ## 📜 License
 
-No license file is currently included. Add one if you plan to distribute this project publicly.
+Licensed under the **GNU Affero General Public License v3.0 (or later)**.
+
+See [`LICENSE`](LICENSE) for the full terms.
 
 ## 🧯 Disclaimer
 

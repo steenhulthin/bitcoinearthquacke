@@ -61,7 +61,7 @@ Or use the UI sliders:
 
 If CoinGecko is unavailable or rate-limited, the app falls back to:
 
-- `data/coingecko_bitcoin_market_chart_365d.json`
+- `data/coingecko_bitcoin_market_chart_365d_2026-03-06.json`
 
 This file uses the same `market_chart` JSON structure as the live CoinGecko API.
 
@@ -69,7 +69,7 @@ This file uses the same `market_chart` JSON structure as the live CoinGecko API.
 
 If USGS is unavailable, the app falls back to:
 
-- `data/usgs_earthquakes_4plus_365d.geojson`
+- `data/usgs_earthquakes_4plus_365d_2026-03-06.geojson`
 
 This file uses the same USGS GeoJSON `features` structure as the live API.
 

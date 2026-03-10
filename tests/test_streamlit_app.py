@@ -74,7 +74,7 @@ class StreamlitAppTests(unittest.TestCase):
         }
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            fallback_json = Path(tmp_dir) / "usgs_earthquakes_4plus_365d.geojson"
+            fallback_json = Path(tmp_dir) / "usgs_earthquakes_4plus_365d_2026-03-06.geojson"
             fallback_json.write_text(json.dumps(payload), encoding="utf-8")
             with patch.object(streamlit_app, "USGS_FALLBACK_PATH", fallback_json):
                 with patch("streamlit_app.requests.get", side_effect=Exception("503")):
@@ -116,7 +116,7 @@ class StreamlitAppTests(unittest.TestCase):
         payload = {"prices": prices}
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            fallback_json = Path(tmp_dir) / "coingecko_bitcoin_market_chart_365d.json"
+            fallback_json = Path(tmp_dir) / "coingecko_bitcoin_market_chart_365d_2026-03-06.json"
             fallback_json.write_text(json.dumps(payload), encoding="utf-8")
             with patch.object(streamlit_app, "COINGECKO_FALLBACK_PATH", fallback_json):
                 with patch("streamlit_app.requests.get", side_effect=Exception("429")):

@@ -20,9 +20,11 @@ REQUEST_TIMEOUT_SECONDS = 30
 MAX_USGS_PAGES = 50
 COINGECKO_MAX_DAYS = 365
 COINGECKO_FALLBACK_PATH = (
-    Path(__file__).with_name("data") / "coingecko_bitcoin_market_chart_365d.json"
+    Path(__file__).with_name("data") / "coingecko_bitcoin_market_chart_365d_2026-03-06.json"
 )
-USGS_FALLBACK_PATH = Path(__file__).with_name("data") / "usgs_earthquakes_4plus_365d.geojson"
+USGS_FALLBACK_PATH = (
+    Path(__file__).with_name("data") / "usgs_earthquakes_4plus_365d_2026-03-06.geojson"
+)
 
 
 class DataFetchError(RuntimeError):
